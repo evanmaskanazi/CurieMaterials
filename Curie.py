@@ -215,27 +215,32 @@ def compare_models(results_dict, metric='test_error', labels=None, title="Model 
 # Main execution
 if __name__ == "__main__":
     # 1. Load and preprocess data
+    # Training/test data
     main_data = load_and_preprocess_data(r'C:/Users/Downloads/datasetVfii.txt',
                                          ionic_params=(1.38, 1.4))
-    test_data = load_and_preprocess_data(r'C:/Users/Downloads/datasetVftesti.txt',
-                                         ionic_params=(1.38, 1.4))
+
+    # Separate validation data (test-test data)
+    validation_data = load_and_preprocess_data(r'C:/Users/Downloads/datasetVftesti.txt',
+                                               ionic_params=(1.38, 1.4))
 
     # 2. Create dataframes
     df = create_dataframe(main_data)
-    df_test = create_dataframe(test_data)
+    df_validation = create_dataframe(validation_data)
 
     # 3. Define feature sets
+    # Training/test features
     X_full = df[['1', '2', '3', '4', '5', '6', '7', '8', '9', '11', '12', '13', '14', '15', '16']]
     y = df['10']
 
     X_reduced = df[['1', '2', '3', '4', '5', '6', '7', '11', '12', '13', '14', '15', '16']]
 
-    X_test_full = df_test[['1', '2', '3', '4', '5', '6', '7', '8', '9', '11', '12', '13', '14', '15', '16']]
-    y_test = df_test['10']
+    # Validation features
+    X_validation_full = df_validation[['1', '2', '3', '4', '5', '6', '7', '8', '9', '11', '12', '13', '14', '15', '16']]
+    y_validation = df_validation['10']
 
-    X_test_reduced = df_test[['1', '2', '3', '4', '5', '6', '7', '11', '12', '13', '14', '15', '16']]
+    X_validation_reduced = df_validation[['1', '2', '3', '4', '5', '6', '7', '11', '12', '13', '14', '15', '16']]
 
-    # 4. Split data
+    # 4. Split data for training and testing
     X_train_full, X_test_full, y_train_full, y_test_full = train_test_split(
         X_full, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
@@ -302,14 +307,14 @@ if __name__ == "__main__":
         tuned_svr.best_estimator_, X_train_reduced, X_test_reduced, y_train_reduced, y_test_reduced,
         transform_poly=tuned_svr.transform_poly)
 
-    # 10. Evaluate on validation data
+    # 10. Evaluate on separate validation data
     validation_results = {}
     for name, result in results.items():
         # Get correct validation feature set
         if 'full' in name:
-            X_val = X_test_full.copy()
+            X_val = X_validation_full.copy()
         else:
-            X_val = X_test_reduced.copy()
+            X_val = X_validation_reduced.copy()
 
         # Use the same transformation as during training
         if result['transform_poly'] and result['poly_transformer'] is not None:
@@ -320,28 +325,22 @@ if __name__ == "__main__":
         # Predict on validation set
         y_pred_val = result['model'].predict(X_val_transformed)
 
-        # Make sure all arrays are the same length
-        min_len = min(len(y_test_full), len(y_pred_val))
-        y_val_trimmed = y_test_full[:min_len]
-        y_pred_val_trimmed = y_pred_val[:min_len]
-
-        val_error = mean_absolute_error(y_val_trimmed, y_pred_val_trimmed)
+        val_error = mean_absolute_error(y_validation, y_pred_val)
 
         # Calculate validation R^2
         model_linear = LinearRegression()
         model_linear.fit(
-            np.array(y_val_trimmed).reshape(-1, 1),
-            np.array(y_pred_val_trimmed).reshape(-1, 1)
+            np.array(y_validation).reshape(-1, 1),
+            np.array(y_pred_val).reshape(-1, 1)
         )
         score = model_linear.score(
-            np.array(y_val_trimmed).reshape(-1, 1),
-            np.array(y_pred_val_trimmed).reshape(-1, 1)
+            np.array(y_validation).reshape(-1, 1),
+            np.array(y_pred_val).reshape(-1, 1)
         )
-        val_r2 = 1 - (1 - score) * (len(y_pred_val_trimmed) - 1) / (len(y_pred_val_trimmed) - 1 - 1)
+        val_r2 = 1 - (1 - score) * (len(y_pred_val) - 1) / (len(y_pred_val) - 1 - 1)
 
         validation_results[name] = {
-            'y_pred_val': y_pred_val_trimmed,
-            'y_val': y_val_trimmed,
+            'y_pred_val': y_pred_val,
             'val_error': val_error,
             'val_r2': val_r2
         }
@@ -351,7 +350,7 @@ if __name__ == "__main__":
     compare_models(
         {name: {'test_error': results[name]['test_error']} for name in results},
         title="Model Comparison - Test Error",
-        filename="model_comparison_error.svg"
+        filename="model_comparison_error2.svg"
     )
 
     # Plot best model predictions
@@ -364,7 +363,7 @@ if __name__ == "__main__":
         best_model['y_pred'],
         y_train_full if 'full' in best_model_name else y_train_reduced,
         best_model['y_pred_train'],
-        best_validation['y_val'],
+        y_validation,
         best_validation['y_pred_val'],
         best_model['test_error'],
         best_model['train_error'],
@@ -373,5 +372,5 @@ if __name__ == "__main__":
         best_model['adj_r2'],  # Using same R2 for train
         best_validation['val_r2'],
         title=f"Best Model: {best_model_name}",
-        filename="best_model_predictions.svg"
+        filename="best_model_predictions2.svg"
     )
