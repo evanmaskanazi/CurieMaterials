@@ -1,0 +1,1 @@
+Comparison of ability of SVR and Random Forest to predict Curie Temperatures for an original and reduced feature set as defined in https://www.sciencedirect.com/science/article/abs/pii/S0927025621004572.
